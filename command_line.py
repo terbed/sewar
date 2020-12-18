@@ -1,25 +1,22 @@
 import argparse
-import re
-import ast
-import sewar
 from PIL import Image
 import numpy as np
 from .utils import _str_to_array
 
-metrics = dict(mse=sewar.full_ref.mse,
-                rmse=sewar.full_ref.rmse,
-                psnr=sewar.full_ref.psnr,
-                rmse_sw=sewar.full_ref.rmse_sw,
-                uqi=sewar.full_ref.uqi,
-                ssim=sewar.full_ref.ssim,
-                ergas=sewar.full_ref.ergas,
-                scc=sewar.full_ref.scc,
-                rase=sewar.full_ref.rase,
-                sam=sewar.full_ref.sam,
-                msssim=sewar.full_ref.msssim,
-                vifp=sewar.full_ref.vifp,
-                psnrb=sewar.full_ref.psnrb,
-                )
+metrics = dict(mse=full_ref.mse,
+               rmse=full_ref.rmse,
+               psnr=full_ref.psnr,
+               rmse_sw=full_ref.rmse_sw,
+               uqi=full_ref.uqi,
+               ssim=full_ref.ssim,
+               ergas=full_ref.ergas,
+               scc=full_ref.scc,
+               rase=full_ref.rase,
+               sam=full_ref.sam,
+               msssim=full_ref.msssim,
+               vifp=full_ref.vifp,
+               psnrb=full_ref.psnrb,
+               )
                 #d_lambda=sewar.no_ref.d_lambda,
                 #d_s=sewar.no_ref.d_s,
                 #qnr=sewar.no_ref.qnr)
