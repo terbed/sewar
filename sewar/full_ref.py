@@ -2,394 +2,440 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 from scipy import signal
 from math import log2, log10
-from scipy.ndimage import generic_laplace,uniform_filter,correlate,gaussian_filter
-from .utils import _initial_check,_get_sigmas,_get_sums,Filter,_replace_value,fspecial,filter2,_power_complex,_compute_bef
-
-def mse (GT,P):
-	"""calculates mean squared error (mse).
-
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-
-	:returns:  float -- mse value.
-	"""
-	GT,P = _initial_check(GT,P)
-	return np.mean((GT.astype(np.float64)-P.astype(np.float64))**2)
-
-def rmse (GT,P):
-	"""calculates root mean squared error (rmse).
+from scipy.ndimage import generic_laplace, uniform_filter, correlate, gaussian_filter
+from .utils import _initial_check, _get_sigmas, _get_sums, Filter, _replace_value, fspecial, filter2, _power_complex, \
+    _compute_bef
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
 
-	:returns:  float -- rmse value.
-	"""
-	GT,P = _initial_check(GT,P)
-	return np.sqrt(mse(GT,P))
+def mse(GT, P):
+    """calculates mean squared error (mse).
 
-def _rmse_sw_single (GT,P,ws):	
-	errors = (GT-P)**2
-	errors = uniform_filter(errors.astype(np.float64),ws)
-	rmse_map = np.sqrt(errors)
-	s = int(np.round((ws/2)))
-	return np.mean(rmse_map[s:-s,s:-s]),rmse_map
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
 
-def rmse_sw (GT,P,ws=8):
-	"""calculates root mean squared error (rmse) using sliding window.
+    :returns:  float -- mse value.
+    """
+    GT, P = _initial_check(GT, P)
+    return np.mean((GT.astype(np.float64) - P.astype(np.float64)) ** 2)
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param ws: sliding window size (default = 8).
 
-	:returns:  tuple -- rmse value,rmse map.	
-	"""
-	GT,P = _initial_check(GT,P)
+def rmse(GT, P):
+    """calculates root mean squared error (rmse).
 
-	rmse_map = np.zeros(GT.shape)
-	vals = np.zeros(GT.shape[2])
-	for i in range(GT.shape[2]):
-		vals[i],rmse_map[:,:,i] = _rmse_sw_single (GT[:,:,i],P[:,:,i],ws) 
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
 
-	return np.mean(vals),rmse_map
+    :returns:  float -- rmse value.
+    """
+    GT, P = _initial_check(GT, P)
+    return np.sqrt(mse(GT, P))
 
-def psnr (GT,P,MAX=None):
-	"""calculates peak signal-to-noise ratio (psnr).
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param MAX: maximum value of datarange (if None, MAX is calculated using image dtype).
+def _rmse_sw_single(GT, P, ws):
+    errors = (GT - P) ** 2
+    errors = uniform_filter(errors.astype(np.float64), ws)
+    rmse_map = np.sqrt(errors)
+    s = int(np.round((ws / 2)))
+    return np.mean(rmse_map[s:-s, s:-s]), rmse_map
 
-	:returns:  float -- psnr value in dB.
-	"""
-	if MAX is None:
-		MAX = np.iinfo(GT.dtype).max
 
-	GT,P = _initial_check(GT,P)
+def rmse_sw(GT, P, ws=8):
+    """calculates root mean squared error (rmse) using sliding window.
 
-	mse_value = mse(GT,P)
-	if mse_value == 0.:
-		return np.inf
-	return 10 * np.log10(MAX**2 /mse_value)
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param ws: sliding window size (default = 8).
 
-def _uqi_single(GT,P,ws):
-	N = ws**2
-	window = np.ones((ws,ws))
+    :returns:  tuple -- rmse value,rmse map.
+    """
+    GT, P = _initial_check(GT, P)
 
-	GT_sq = GT*GT
-	P_sq = P*P
-	GT_P = GT*P
+    rmse_map = np.zeros(GT.shape)
+    vals = np.zeros(GT.shape[2])
+    for i in range(GT.shape[2]):
+        vals[i], rmse_map[:, :, i] = _rmse_sw_single(GT[:, :, i], P[:, :, i], ws)
 
-	GT_sum = uniform_filter(GT, ws)    
-	P_sum =  uniform_filter(P, ws)     
-	GT_sq_sum = uniform_filter(GT_sq, ws)  
-	P_sq_sum = uniform_filter(P_sq, ws)  
-	GT_P_sum = uniform_filter(GT_P, ws)
+    return np.mean(vals), rmse_map
 
-	GT_P_sum_mul = GT_sum*P_sum
-	GT_P_sum_sq_sum_mul = GT_sum*GT_sum + P_sum*P_sum
-	numerator = 4*(N*GT_P_sum - GT_P_sum_mul)*GT_P_sum_mul
-	denominator1 = N*(GT_sq_sum + P_sq_sum) - GT_P_sum_sq_sum_mul
-	denominator = denominator1*GT_P_sum_sq_sum_mul
 
-	q_map = np.ones(denominator.shape)
-	index = np.logical_and((denominator1 == 0) , (GT_P_sum_sq_sum_mul != 0))
-	q_map[index] = 2*GT_P_sum_mul[index]/GT_P_sum_sq_sum_mul[index]
-	index = (denominator != 0)
-	q_map[index] = numerator[index]/denominator[index]
+def psnr(GT, P, MAX=None):
+    """calculates peak signal-to-noise ratio (psnr).
 
-	s = int(np.round(ws/2))
-	return np.mean(q_map[s:-s,s:-s])
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param MAX: maximum value of datarange (if None, MAX is calculated using image dtype).
 
-def uqi (GT,P,ws=8):
-	"""calculates universal image quality index (uqi).
+    :returns:  float -- psnr value in dB.
+    """
+    if MAX is None:
+        MAX = np.iinfo(GT.dtype).max
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param ws: sliding window size (default = 8).
+    GT, P = _initial_check(GT, P)
 
-	:returns:  float -- uqi value.
-	"""
-	GT,P = _initial_check(GT,P)
-	return np.mean([_uqi_single(GT[:,:,i],P[:,:,i],ws) for i in range(GT.shape[2])])
+    mse_value = mse(GT, P)
+    if mse_value == 0.:
+        return np.inf
+    return 10 * np.log10(MAX ** 2 / mse_value)
 
-def _ssim_single (GT,P,ws,C1,C2,fltr_specs,mode):
-	win = fspecial(**fltr_specs)
 
-	GT_sum_sq,P_sum_sq,GT_P_sum_mul = _get_sums(GT,P,win,mode)
-	sigmaGT_sq,sigmaP_sq,sigmaGT_P = _get_sigmas(GT,P,win,mode,sums=(GT_sum_sq,P_sum_sq,GT_P_sum_mul))
+def _uqi_single(GT, P, ws):
+    N = ws ** 2
+    window = np.ones((ws, ws))
 
-	assert C1 > 0
-	assert C2 > 0
+    GT_sq = GT * GT
+    P_sq = P * P
+    GT_P = GT * P
 
-	ssim_map = ((2*GT_P_sum_mul + C1)*(2*sigmaGT_P + C2))/((GT_sum_sq + P_sum_sq + C1)*(sigmaGT_sq + sigmaP_sq + C2))
-	cs_map = (2*sigmaGT_P + C2)/(sigmaGT_sq + sigmaP_sq + C2)
+    GT_sum = uniform_filter(GT, ws)
+    P_sum = uniform_filter(P, ws)
+    GT_sq_sum = uniform_filter(GT_sq, ws)
+    P_sq_sum = uniform_filter(P_sq, ws)
+    GT_P_sum = uniform_filter(GT_P, ws)
 
-	
-	return np.mean(ssim_map), np.mean(cs_map)
+    GT_P_sum_mul = GT_sum * P_sum
+    GT_P_sum_sq_sum_mul = GT_sum * GT_sum + P_sum * P_sum
+    numerator = 4 * (N * GT_P_sum - GT_P_sum_mul) * GT_P_sum_mul
+    denominator1 = N * (GT_sq_sum + P_sq_sum) - GT_P_sum_sq_sum_mul
+    denominator = denominator1 * GT_P_sum_sq_sum_mul
 
+    q_map = np.ones(denominator.shape)
+    index = np.logical_and((denominator1 == 0), (GT_P_sum_sq_sum_mul != 0))
+    q_map[index] = 2 * GT_P_sum_mul[index] / GT_P_sum_sq_sum_mul[index]
+    index = (denominator != 0)
+    q_map[index] = numerator[index] / denominator[index]
 
-def ssim (GT,P,ws=11,K1=0.01,K2=0.03,MAX=None,fltr_specs=None,mode='valid'):
-	"""calculates structural similarity index (ssim).
+    s = int(np.round(ws / 2))
+    return np.mean(q_map[s:-s, s:-s])
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param ws: sliding window size (default = 8).
-	:param K1: First constant for SSIM (default = 0.01).
-	:param K2: Second constant for SSIM (default = 0.03).
-	:param MAX: Maximum value of datarange (if None, MAX is calculated using image dtype).
 
-	:returns:  tuple -- ssim value, cs value.
-	"""
-	if MAX is None:
-		MAX = np.iinfo(GT.dtype).max
+def uqi(GT, P, ws=8):
+    """calculates universal image quality index (uqi).
 
-	GT,P = _initial_check(GT,P)
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param ws: sliding window size (default = 8).
 
-	if fltr_specs is None:
-		fltr_specs=dict(fltr=Filter.UNIFORM,ws=ws)
+    :returns:  float -- uqi value.
+    """
+    GT, P = _initial_check(GT, P)
+    return np.mean([_uqi_single(GT[:, :, i], P[:, :, i], ws) for i in range(GT.shape[2])])
 
-	C1 = (K1*MAX)**2
-	C2 = (K2*MAX)**2
 
-	ssims = []
-	css = []
-	for i in range(GT.shape[2]):
-		ssim,cs = _ssim_single(GT[:,:,i],P[:,:,i],ws,C1,C2,fltr_specs,mode)
-		ssims.append(ssim)
-		css.append(cs)
-	return np.mean(ssims),np.mean(css)
+def _ssim_single(GT, P, ws, C1, C2, fltr_specs, mode):
+    win = fspecial(**fltr_specs)
 
+    GT_sum_sq, P_sum_sq, GT_P_sum_mul = _get_sums(GT, P, win, mode)
+    sigmaGT_sq, sigmaP_sq, sigmaGT_P = _get_sigmas(GT, P, win, mode, sums=(GT_sum_sq, P_sum_sq, GT_P_sum_mul))
 
-def ergas(GT,P,r=4,ws=8):
-	"""calculates erreur relative globale adimensionnelle de synthese (ergas).
+    assert C1 > 0
+    assert C2 > 0
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param r: ratio of high resolution to low resolution (default=4).
-	:param ws: sliding window size (default = 8).
+    ssim_map = ((2 * GT_P_sum_mul + C1) * (2 * sigmaGT_P + C2)) / (
+            (GT_sum_sq + P_sum_sq + C1) * (sigmaGT_sq + sigmaP_sq + C2))
+    cs_map = (2 * sigmaGT_P + C2) / (sigmaGT_sq + sigmaP_sq + C2)
 
-	:returns:  float -- ergas value.
-	"""
-	GT,P = _initial_check(GT,P)
+    return ssim_map, cs_map
 
-	rmse_map = None
-	nb = 1
 
-	_,rmse_map = rmse_sw(GT,P,ws)
+def ssim(GT, P, ws=11, K1=0.01, K2=0.03, MAX=None, fltr_specs=None, mode='valid'):
+    """calculates structural similarity index (ssim).
 
-	means_map = uniform_filter(GT,ws)/ws**2
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param ws: sliding window size (default = 11).
+    :param K1: First constant for SSIM (default = 0.01).
+    :param K2: Second constant for SSIM (default = 0.03).
+    :param MAX: Maximum value of datarange (if None, MAX is calculated using image dtype).
 
-	# Avoid division by zero
-	idx = means_map == 0
-	means_map[idx] = 1
-	rmse_map[idx] = 0
+    :returns:  tuple -- ssim value, cs value.
+    """
+    if MAX is None:
+        MAX = np.iinfo(GT.dtype).max
 
-	ergasroot = np.sqrt(np.sum(((rmse_map**2)/(means_map**2)),axis=2)/nb)
-	ergas_map = 100*r*ergasroot;
+    GT, P = _initial_check(GT, P)
 
-	s = int(np.round(ws/2))
-	return np.mean(ergas_map[s:-s,s:-s])
+    if fltr_specs is None:
+        # fltr_specs = dict(fltr=Filter.UNIFORM, ws=ws)
+        fltr_specs = dict(fltr=Filter.GAUSSIAN, sigma=1.5, ws=11)
 
-def _scc_single(GT,P,win,ws):
-	def _scc_filter(inp, axis, output, mode, cval):
-		return correlate(inp, win , output, mode, cval, 0)
+    C1 = (K1 * MAX) ** 2
+    C2 = (K2 * MAX) ** 2
 
-	GT_hp = generic_laplace(GT.astype(np.float64), _scc_filter)
-	P_hp = generic_laplace(P.astype(np.float64), _scc_filter)
-	win = fspecial(Filter.UNIFORM,ws)
-	sigmaGT_sq,sigmaP_sq,sigmaGT_P = _get_sigmas(GT_hp,P_hp,win)
+    ssims = []
+    css = []
+    for i in range(GT.shape[2]):
+        ssim_map, cs_map = _ssim_single(GT[:, :, i], P[:, :, i], ws, C1, C2, fltr_specs, mode)
+        ssims.append(np.mean(ssim_map))
+        css.append(np.mean(cs_map))
 
-	sigmaGT_sq[sigmaGT_sq<0] = 0
-	sigmaP_sq[sigmaP_sq<0] = 0
+    return np.mean(ssims), np.mean(css)
 
-	den = np.sqrt(sigmaGT_sq) * np.sqrt(sigmaP_sq)
-	idx = (den==0)
-	den = _replace_value(den,0,1)
-	scc = sigmaGT_P / den
-	scc[idx] = 0
-	return scc
 
-def scc(GT,P,win=[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]],ws=8):
-	"""calculates spatial correlation coefficient (scc).
+def ssim_map(GT, P, ws=11, K1=0.01, K2=0.03, MAX=None, fltr_specs=None, mode='valid'):
+    """calculates structural similarity index (ssim).
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param fltr: high pass filter for spatial processing (default=[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]).
-	:param ws: sliding window size (default = 8).
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param ws: sliding window size (default = 11).
+    :param K1: First constant for SSIM (default = 0.01).
+    :param K2: Second constant for SSIM (default = 0.03).
+    :param MAX: Maximum value of datarange (if None, MAX is calculated using image dtype).
 
-	:returns:  float -- scc value.
-	"""
-	GT,P = _initial_check(GT,P)
+    :returns:  tuple -- ssim map, cs map.
+    """
+    if MAX is None:
+        MAX = np.iinfo(GT.dtype).max
 
-	coefs = np.zeros(GT.shape)
-	for i in range(GT.shape[2]):
-		coefs[:,:,i] = _scc_single(GT[:,:,i],P[:,:,i],win,ws)
-	return np.mean(coefs)
+    GT, P = _initial_check(GT, P)
 
+    if fltr_specs is None:
+        # fltr_specs = dict(fltr=Filter.UNIFORM, ws=ws)
+        fltr_specs = dict(fltr=Filter.GAUSSIAN, sigma=1.5, ws=11)
 
-def rase(GT,P,ws=8):
-	"""calculates relative average spectral error (rase).
+    C1 = (K1 * MAX) ** 2
+    C2 = (K2 * MAX) ** 2
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param ws: sliding window size (default = 8).
+    ssims = []
+    css = []
+    for i in range(GT.shape[2]):
+        ssim_map, cs_map = _ssim_single(GT[:, :, i], P[:, :, i], ws, C1, C2, fltr_specs, mode)
+        ssims.append(ssim_map)
+        css.append(cs_map)
 
-	:returns:  float -- rase value.
-	"""
-	GT,P = _initial_check(GT,P)
+    return np.mean(ssims, axis=0), np.mean(css, axis=0)
 
-	_,rmse_map = rmse_sw(GT,P,ws)
 
-	GT_means = uniform_filter(GT, ws)/ws**2
+def ergas(GT, P, r=4, ws=8):
+    """calculates erreur relative globale adimensionnelle de synthese (ergas).
 
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param r: ratio of high resolution to low resolution (default=4).
+    :param ws: sliding window size (default = 8).
 
-	N = GT.shape[2]
-	M = np.sum(GT_means,axis=2)/N
-	rase_map = (100./M) * np.sqrt( np.sum(rmse_map**2,axis=2) / N )
+    :returns:  float -- ergas value.
+    """
+    GT, P = _initial_check(GT, P)
 
-	s = int(np.round(ws/2))
-	return np.mean(rase_map[s:-s,s:-s])
+    rmse_map = None
+    nb = 1
 
+    _, rmse_map = rmse_sw(GT, P, ws)
 
-def sam (GT,P):
-	"""calculates spectral angle mapper (sam).
+    means_map = uniform_filter(GT, ws) / ws ** 2
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
+    # Avoid division by zero
+    idx = means_map == 0
+    means_map[idx] = 1
+    rmse_map[idx] = 0
 
-	:returns:  float -- sam value.
-	"""
-	GT,P = _initial_check(GT,P)
+    ergasroot = np.sqrt(np.sum(((rmse_map ** 2) / (means_map ** 2)), axis=2) / nb)
+    ergas_map = 100 * r * ergasroot;
 
-	GT = GT.reshape((GT.shape[0]*GT.shape[1],GT.shape[2]))
-	P = P.reshape((P.shape[0]*P.shape[1],P.shape[2]))
+    s = int(np.round(ws / 2))
+    return np.mean(ergas_map[s:-s, s:-s])
 
-	N = GT.shape[1]
-	sam_angles = np.zeros(N)
-	for i in range(GT.shape[1]):
-		val = np.clip(np.dot(GT[:,i],P[:,i]) / (np.linalg.norm(GT[:,i])*np.linalg.norm(P[:,i])),-1,1)		
-		sam_angles[i] = np.arccos(val)
 
-	return np.mean(sam_angles)
+def _scc_single(GT, P, win, ws):
+    def _scc_filter(inp, axis, output, mode, cval):
+        return correlate(inp, win, output, mode, cval, 0)
 
+    GT_hp = generic_laplace(GT.astype(np.float64), _scc_filter)
+    P_hp = generic_laplace(P.astype(np.float64), _scc_filter)
+    win = fspecial(Filter.UNIFORM, ws)
+    sigmaGT_sq, sigmaP_sq, sigmaGT_P = _get_sigmas(GT_hp, P_hp, win)
 
+    sigmaGT_sq[sigmaGT_sq < 0] = 0
+    sigmaP_sq[sigmaP_sq < 0] = 0
 
-def msssim (GT,P,weights = [0.0448, 0.2856, 0.3001, 0.2363, 0.1333],ws=11,K1=0.01,K2=0.03,MAX=None):
-	"""calculates multi-scale structural similarity index (ms-ssim).
+    den = np.sqrt(sigmaGT_sq) * np.sqrt(sigmaP_sq)
+    idx = (den == 0)
+    den = _replace_value(den, 0, 1)
+    scc = sigmaGT_P / den
+    scc[idx] = 0
+    return scc
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param weights: weights for each scale (default = [0.0448, 0.2856, 0.3001, 0.2363, 0.1333]).
-	:param ws: sliding window size (default = 11).
-	:param K1: First constant for SSIM (default = 0.01).
-	:param K2: Second constant for SSIM (default = 0.03).
-	:param MAX: Maximum value of datarange (if None, MAX is calculated using image dtype).
 
-	:returns:  float -- ms-ssim value.
-	"""
-	if MAX is None:
-		MAX = np.iinfo(GT.dtype).max
+def scc(GT, P, win=[[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]], ws=8):
+    """calculates spatial correlation coefficient (scc).
 
-	GT,P = _initial_check(GT,P)
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param fltr: high pass filter for spatial processing (default=[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]).
+    :param ws: sliding window size (default = 8).
 
-	scales = len(weights)
+    :returns:  float -- scc value.
+    """
+    GT, P = _initial_check(GT, P)
 
-	fltr_specs = dict(fltr=Filter.GAUSSIAN,sigma=1.5,ws=11)
+    coefs = np.zeros(GT.shape)
+    for i in range(GT.shape[2]):
+        coefs[:, :, i] = _scc_single(GT[:, :, i], P[:, :, i], win, ws)
+    return np.mean(coefs)
 
-	if isinstance(weights, list):
-		weights = np.array(weights)
 
-	mssim = []
-	mcs = []
-	for _ in range(scales):
-		_ssim, _cs = ssim(GT, P, ws=ws,K1=K1,K2=K2,MAX=MAX,fltr_specs=fltr_specs)
-		mssim.append(_ssim)
-		mcs.append(_cs)
+def rase(GT, P, ws=8):
+    """calculates relative average spectral error (rase).
 
-		filtered = [uniform_filter(im, 2) for im in [GT, P]]
-		GT, P = [x[::2, ::2, :] for x in filtered]
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param ws: sliding window size (default = 8).
 
-	mssim = np.array(mssim,dtype=np.float64)
-	mcs = np.array(mcs,dtype=np.float64)
+    :returns:  float -- rase value.
+    """
+    GT, P = _initial_check(GT, P)
 
-	return np.prod(_power_complex(mcs[:scales-1],weights[:scales-1])) * _power_complex(mssim[scales-1],weights[scales-1])
+    _, rmse_map = rmse_sw(GT, P, ws)
 
+    GT_means = uniform_filter(GT, ws) / ws ** 2
 
-def _vifp_single(GT,P,sigma_nsq):
-	EPS = 1e-10
-	num =0.0
-	den =0.0
-	for scale in range(1,5):
-		N=2.0**(4-scale+1)+1
-		win = fspecial(Filter.GAUSSIAN,ws=N,sigma=N/5)
+    N = GT.shape[2]
+    M = np.sum(GT_means, axis=2) / N
+    rase_map = (100. / M) * np.sqrt(np.sum(rmse_map ** 2, axis=2) / N)
 
-		if scale >1:
-			GT = filter2(GT,win,'valid')[::2, ::2]
-			P = filter2(P,win,'valid')[::2, ::2]
+    s = int(np.round(ws / 2))
+    return np.mean(rase_map[s:-s, s:-s])
 
-		GT_sum_sq,P_sum_sq,GT_P_sum_mul = _get_sums(GT,P,win,mode='valid')
-		sigmaGT_sq,sigmaP_sq,sigmaGT_P = _get_sigmas(GT,P,win,mode='valid',sums=(GT_sum_sq,P_sum_sq,GT_P_sum_mul))
 
+def sam(GT, P):
+    """calculates spectral angle mapper (sam).
 
-		sigmaGT_sq[sigmaGT_sq<0]=0
-		sigmaP_sq[sigmaP_sq<0]=0
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
 
-		g=sigmaGT_P /(sigmaGT_sq+EPS)
-		sv_sq=sigmaP_sq-g*sigmaGT_P
-		
-		g[sigmaGT_sq<EPS]=0
-		sv_sq[sigmaGT_sq<EPS]=sigmaP_sq[sigmaGT_sq<EPS]
-		sigmaGT_sq[sigmaGT_sq<EPS]=0
-		
-		g[sigmaP_sq<EPS]=0
-		sv_sq[sigmaP_sq<EPS]=0
-		
-		sv_sq[g<0]=sigmaP_sq[g<0]
-		g[g<0]=0
-		sv_sq[sv_sq<=EPS]=EPS
-		
-	
-		num += np.sum(np.log10(1.0+(g**2.)*sigmaGT_sq/(sv_sq+sigma_nsq)))
-		den += np.sum(np.log10(1.0+sigmaGT_sq/sigma_nsq))
+    :returns:  float -- sam value.
+    """
+    GT, P = _initial_check(GT, P)
 
-	return num/den
+    GT = GT.reshape((GT.shape[0] * GT.shape[1], GT.shape[2]))
+    P = P.reshape((P.shape[0] * P.shape[1], P.shape[2]))
 
-def vifp(GT,P,sigma_nsq=2):
-	"""calculates Pixel Based Visual Information Fidelity (vif-p).
+    N = GT.shape[1]
+    sam_angles = np.zeros(N)
+    for i in range(GT.shape[1]):
+        val = np.clip(np.dot(GT[:, i], P[:, i]) / (np.linalg.norm(GT[:, i]) * np.linalg.norm(P[:, i])), -1, 1)
+        sam_angles[i] = np.arccos(val)
 
-	:param GT: first (original) input image.
-	:param P: second (deformed) input image.
-	:param sigma_nsq: variance of the visual noise (default = 2)
+    return np.mean(sam_angles)
 
-	:returns:  float -- vif-p value.
-	"""
-	GT,P = _initial_check(GT,P)
-	# GT,P = GT[:,:,np.newaxis],P[:,:,np.newaxis]
-	return np.mean([_vifp_single(GT[:,:,i],P[:,:,i],sigma_nsq) for i in range(GT.shape[2])])
+
+def msssim(GT, P, weights=[0.0448, 0.2856, 0.3001, 0.2363, 0.1333], ws=11, K1=0.01, K2=0.03, MAX=None):
+    """calculates multi-scale structural similarity index (ms-ssim).
+
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param weights: weights for each scale (default = [0.0448, 0.2856, 0.3001, 0.2363, 0.1333]).
+    :param ws: sliding window size (default = 11).
+    :param K1: First constant for SSIM (default = 0.01).
+    :param K2: Second constant for SSIM (default = 0.03).
+    :param MAX: Maximum value of datarange (if None, MAX is calculated using image dtype).
+
+    :returns:  float -- ms-ssim value.
+    """
+    if MAX is None:
+        MAX = np.iinfo(GT.dtype).max
+
+    GT, P = _initial_check(GT, P)
+
+    scales = len(weights)
+
+    fltr_specs = dict(fltr=Filter.GAUSSIAN, sigma=1.5, ws=11)
+
+    if isinstance(weights, list):
+        weights = np.array(weights)
+
+    mssim = []
+    mcs = []
+    for _ in range(scales):
+        _ssim, _cs = ssim(GT, P, ws=ws, K1=K1, K2=K2, MAX=MAX, fltr_specs=fltr_specs)
+        mssim.append(_ssim)
+        mcs.append(_cs)
+
+        filtered = [uniform_filter(im, 2) for im in [GT, P]]
+        GT, P = [x[::2, ::2, :] for x in filtered]
+
+    mssim = np.array(mssim, dtype=np.float64)
+    mcs = np.array(mcs, dtype=np.float64)
+
+    return np.prod(_power_complex(mcs[:scales - 1], weights[:scales - 1])) * _power_complex(mssim[scales - 1],
+                                                                                            weights[scales - 1])
+
+
+def _vifp_single(GT, P, sigma_nsq):
+    EPS = 1e-10
+    num = 0.0
+    den = 0.0
+    for scale in range(1, 5):
+        N = 2.0 ** (4 - scale + 1) + 1
+        win = fspecial(Filter.GAUSSIAN, ws=N, sigma=N / 5)
+
+        if scale > 1:
+            GT = filter2(GT, win, 'valid')[::2, ::2]
+            P = filter2(P, win, 'valid')[::2, ::2]
+
+        GT_sum_sq, P_sum_sq, GT_P_sum_mul = _get_sums(GT, P, win, mode='valid')
+        sigmaGT_sq, sigmaP_sq, sigmaGT_P = _get_sigmas(GT, P, win, mode='valid',
+                                                       sums=(GT_sum_sq, P_sum_sq, GT_P_sum_mul))
+
+        sigmaGT_sq[sigmaGT_sq < 0] = 0
+        sigmaP_sq[sigmaP_sq < 0] = 0
+
+        g = sigmaGT_P / (sigmaGT_sq + EPS)
+        sv_sq = sigmaP_sq - g * sigmaGT_P
+
+        g[sigmaGT_sq < EPS] = 0
+        sv_sq[sigmaGT_sq < EPS] = sigmaP_sq[sigmaGT_sq < EPS]
+        sigmaGT_sq[sigmaGT_sq < EPS] = 0
+
+        g[sigmaP_sq < EPS] = 0
+        sv_sq[sigmaP_sq < EPS] = 0
+
+        sv_sq[g < 0] = sigmaP_sq[g < 0]
+        g[g < 0] = 0
+        sv_sq[sv_sq <= EPS] = EPS
+
+        num += np.sum(np.log10(1.0 + (g ** 2.) * sigmaGT_sq / (sv_sq + sigma_nsq)))
+        den += np.sum(np.log10(1.0 + sigmaGT_sq / sigma_nsq))
+
+    return num / den
+
+
+def vifp(GT, P, sigma_nsq=2):
+    """calculates Pixel Based Visual Information Fidelity (vif-p).
+
+    :param GT: first (original) input image.
+    :param P: second (deformed) input image.
+    :param sigma_nsq: variance of the visual noise (default = 2)
+
+    :returns:  float -- vif-p value.
+    """
+    GT, P = _initial_check(GT, P)
+    # GT,P = GT[:,:,np.newaxis],P[:,:,np.newaxis]
+    return np.mean([_vifp_single(GT[:, :, i], P[:, :, i], sigma_nsq) for i in range(GT.shape[2])])
 
 
 def psnrb(GT, P):
-	"""Calculates PSNR with Blocking Effect Factor for a given pair of images (PSNR-B)
+    """Calculates PSNR with Blocking Effect Factor for a given pair of images (PSNR-B)
 
-	:param GT: first (original) input image in YCbCr format or Grayscale.
-	:param P: second (corrected) input image in YCbCr format or Grayscale..
-	:return: float -- psnr_b.
-	"""
-	if len(GT.shape) == 3:
-		GT = GT[:, :, 0]
+    :param GT: first (original) input image in YCbCr format or Grayscale.
+    :param P: second (corrected) input image in YCbCr format or Grayscale..
+    :return: float -- psnr_b.
+    """
+    if len(GT.shape) == 3:
+        GT = GT[:, :, 0]
 
-	if len(P.shape) == 3:
-		P = P[:, :, 0]
+    if len(P.shape) == 3:
+        P = P[:, :, 0]
 
-	imdff = np.double(GT) - np.double(P)
+    imdff = np.double(GT) - np.double(P)
 
-	mse = np.mean(np.square(imdff.flatten()))
-	bef = _compute_bef(P)
-	mse_b = mse + bef
+    mse = np.mean(np.square(imdff.flatten()))
+    bef = _compute_bef(P)
+    mse_b = mse + bef
 
-	if np.amax(P) > 2:
-		psnr_b = 10 * log10(255**2/mse_b)
-	else:
-		psnr_b = 10 * log10(1/mse_b)
+    if np.amax(P) > 2:
+        psnr_b = 10 * log10(255 ** 2 / mse_b)
+    else:
+        psnr_b = 10 * log10(1 / mse_b)
 
-	return psnr_b
+    return psnr_b

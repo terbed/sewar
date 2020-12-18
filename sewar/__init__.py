@@ -9,6 +9,7 @@ from .full_ref import psnr
 from .full_ref import rmse_sw
 from .full_ref import uqi
 from .full_ref import ssim
+from .full_ref import ssim_map
 from .full_ref import ergas
 from .full_ref import scc
 from .full_ref import rase
