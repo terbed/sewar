@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from math import log2, log10
 from scipy.ndimage import generic_laplace, uniform_filter, correlate, gaussian_filter
-from .utils import _initial_check, _get_sigmas, _get_sums, Filter, _replace_value, fspecial, filter2, _power_complex, \
+from utils import _initial_check, _get_sigmas, _get_sums, Filter, _replace_value, fspecial, filter2, _power_complex, \
     _compute_bef
 
 
@@ -202,7 +202,10 @@ def ssim_map(GT, P, ws=11, K1=0.01, K2=0.03, MAX=None, fltr_specs=None, mode='va
         ssims.append(ssim_map)
         css.append(cs_map)
 
-    return np.mean(ssims, axis=0), np.mean(css, axis=0)
+    # Norm to be in range [0, 1]
+    ssimmap = (np.mean(ssims, axis=0) + 1) / 2
+
+    return ssimmap, np.mean(css, axis=0)
 
 
 def ergas(GT, P, r=4, ws=8):
