@@ -4,6 +4,7 @@
 
 Sewar is a python package for image quality assessment using different metrics. You can check documentation [here](http://sewar.readthedocs.io/).
 
+## Modified sewar to gave back SSIM map (not just mean scalar)
 
 ## Implemented metrics
 - [x] Mean Squared Error (MSE) 
