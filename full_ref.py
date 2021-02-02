@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 from math import log2, log10
 from scipy.ndimage import generic_laplace, uniform_filter, correlate, gaussian_filter
-from utils import _initial_check, _get_sigmas, _get_sums, Filter, _replace_value, fspecial, filter2, _power_complex, \
+from .utils import _initial_check, _get_sigmas, _get_sums, Filter, _replace_value, fspecial, filter2, _power_complex, \
     _compute_bef
 
 
